@@ -104,14 +104,15 @@ jobs:
           --min-recall "${{ env.MIN_RECALL }}"
 
       - name: Build spaCy pipeline package (wheel)
-        run: >
-          uv run --with build python -m spacy package
-          pii_ner/models/model-best ./packaged
-          --meta-path pii_ner/meta_overrides.json
-          --name "${{ env.MODEL_PACKAGE_NAME }}"
-          --version "${{ steps.version.outputs.version }}"
-          --build wheel
-          --force
+        run: |
+          mkdir -p ./packaged
+          uv run --with build python -m spacy package \
+            pii_ner/models/model-best ./packaged \
+            --meta-path pii_ner/meta_overrides.json \
+            --name "${{ env.MODEL_PACKAGE_NAME }}" \
+            --version "${{ steps.version.outputs.version }}" \
+            --build wheel \
+            --force
 
       - name: Locate built wheel
         id: wheel
