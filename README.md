@@ -1,5 +1,7 @@
 # spacy_ner_pii
 
+[![Release](https://github.com/irufano/spacy_ner_pii/actions/workflows/release.yml/badge.svg)](https://github.com/irufano/spacy_ner_pii/actions/workflows/release.yml)
+
 A [spaCy](https://spacy.io) NER pipeline fine-tuned to detect **PII (Personally Identifiable Information)** in free-form Indonesian text — currently covering:
 
 - **`PER`** — person names (single names, compound names, titles/honorifics, international names)
@@ -19,10 +21,10 @@ Evaluated on a 105-sentence hand-labeled gold set covering hard cases (dialog at
 
 ## Installation
 
-The trained model is released separately as a wheel via [GitHub Releases](https://github.com/irufano/spacy_ner_pii/releases) (not committed to this repo):
+The trained model is released separately as a wheel via [GitHub Releases](https://github.com/irufano/spacy_ner_pii/releases) (not committed to this repo) — grab the `.whl` URL from the latest release and install it directly:
 
 ```bash
-pip install https://github.com/irufano/spacy_ner_pii/releases/download/v0.1.0/xx_ent_pii_sm-0.1.0-py3-none-any.whl
+pip install https://github.com/irufano/spacy_ner_pii/releases/download/v0.1.1/xx_ent_pii_sm-0.1.1-py3-none-any.whl
 ```
 
 ## Usage
@@ -47,9 +49,23 @@ This repo contains the training pipeline, not the trained model artifacts (`pii_
 uv sync
 ```
 
-- [`pii_ner/pii_data_train_generator.ipynb`](pii_ner/pii_data_train_generator.ipynb) — generates the synthetic labeled dataset (`dataset_ner_3000_v*.csv`)
+- [`pii_ner/pii_data_train_generator.ipynb`](pii_ner/pii_data_train_generator.ipynb) — generates the synthetic labeled dataset (`pii_ner/dataset_ner_3000_v1.csv`, committed as the reproducible source of truth; the generator itself has no random seed, so don't regenerate it unless you intend to produce a new dataset version)
 - [`pii_ner/pii_ner_train.ipynb`](pii_ner/pii_ner_train.ipynb) — converts the dataset to spaCy's binary format and fine-tunes `xx_ent_wiki_sm` (`pii_ner/config.cfg`)
 - [`pii_ner/pii_ner_eval.ipynb`](pii_ner/pii_ner_eval.ipynb) — automatic dev-set benchmark + manual evaluation against the hand-labeled gold set
+- [`pii_ner/scripts/build_docbin.py`](pii_ner/scripts/build_docbin.py) — standalone version of the CSV→`.spacy` conversion (used by CI, no Jupyter required)
+- [`pii_ner/scripts/eval_gate.py`](pii_ner/scripts/eval_gate.py) — standalone version of the gold-set evaluation, exits non-zero if precision/recall drop below threshold (used by CI as a release gate)
+
+## Release process
+
+Pushing a semver tag (`vX.Y.Z`) to `main` triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which:
+
+1. Rebuilds `train.spacy`/`dev.spacy` from the committed dataset CSV (`build_docbin.py`) — the dataset is **not** regenerated.
+2. Fine-tunes `xx_ent_wiki_sm` from scratch using `pii_ner/config.cfg`.
+3. Runs the gold-set eval gate (`eval_gate.py`) — the release is aborted if precision < 90% or recall < 97%.
+4. Packages the model as a wheel (`spacy package ... --name ent_pii_sm`, which spaCy turns into `xx_ent_pii_sm-<version>`) and publishes it as a GitHub Release asset.
+5. Bumps `pyproject.toml`/`uv.lock`'s version to match the tag and pushes that back to `main`.
+
+A `workflow_dispatch` trigger is also available for dry runs (build + train + eval gate + package, without touching `main` or creating a release) before pushing a real tag.
 
 ## Known limitations
 
