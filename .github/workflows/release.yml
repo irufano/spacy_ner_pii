@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to use (no leading v), e.g. 0.1.1 - required for dry runs"
+        required: true
+      push_version_bump:
+        description: "Also bump+commit+push pyproject.toml/uv.lock to main?"
+        type: boolean
+        default: false
+      create_release:
+        description: "Also create a real GitHub Release with the wheel asset?"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # needed to push the version-bump commit AND create the Release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  MIN_PRECISION: "0.90"
+  MIN_RECALL: "0.97"
+  # NOTE: `spacy package --name` must NOT include the language prefix -
+  # spaCy auto-prepends the model's nlp.lang ("xx") itself. Passing the full
+  # "xx_ent_pii_sm" here produces a broken double-prefixed
+  # "xx_xx_ent_pii_sm" package and the wheel build fails (verified locally).
+  # The final installable package name is "xx_ent_pii_sm" as intended.
+  MODEL_PACKAGE_NAME: ent_pii_sm
+  DEFAULT_BRANCH: main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Resolve and validate version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RAW="${{ github.event.inputs.version }}"
+          else
+            RAW="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${RAW#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version '$VERSION' (from '$RAW') is not strict semver X.Y.Z."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Guard main-branch state (only if we might push to it)
+        if: github.event_name == 'push' || inputs.push_version_bump == true
+        run: |
+          git fetch origin "${DEFAULT_BRANCH}"
+          if ! git rev-parse --verify "origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
+            echo "::error::origin/${DEFAULT_BRANCH} does not exist yet. Push an initial commit first."
+            exit 1
+          fi
+          TAG_SHA="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$TAG_SHA" "origin/${DEFAULT_BRANCH}"; then
+            echo "::error::Tagged commit is not an ancestor of origin/${DEFAULT_BRANCH}. Re-tag from ${DEFAULT_BRANCH}."
+            exit 1
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version-file: ".python-version"
+
+      - name: Install project dependencies
+        run: uv sync --locked
+
+      - name: Build train/dev DocBins from committed CSV
+        run: uv run python pii_ner/scripts/build_docbin.py
+
+      - name: Train NER model
+        run: >
+          uv run python -m spacy train pii_ner/config.cfg
+          --output pii_ner/models
+          --paths.train pii_ner/train.spacy
+          --paths.dev pii_ner/dev.spacy
+
+      - name: Evaluation gate (gold examples)
+        run: >
+          uv run python pii_ner/scripts/eval_gate.py
+          --model pii_ner/models/model-best
+          --min-precision "${{ env.MIN_PRECISION }}"
+          --min-recall "${{ env.MIN_RECALL }}"
+
+      - name: Build spaCy pipeline package (wheel)
+        run: >
+          uv run --with build python -m spacy package
+          pii_ner/models/model-best ./packaged
+          --meta-path pii_ner/meta_overrides.json
+          --name "${{ env.MODEL_PACKAGE_NAME }}"
+          --version "${{ steps.version.outputs.version }}"
+          --build wheel
+          --force
+
+      - name: Locate built wheel
+        id: wheel
+        run: |
+          WHEEL_PATH=$(find ./packaged -name "*.whl" -print -quit)
+          if [ -z "$WHEEL_PATH" ]; then
+            echo "::error::No wheel found under ./packaged."
+            exit 1
+          fi
+          echo "path=$WHEEL_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload wheel as workflow artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: xx_${{ env.MODEL_PACKAGE_NAME }}-${{ steps.version.outputs.version }}
+          path: ${{ steps.wheel.outputs.path }}
+          if-no-files-found: error
+
+      - name: Bump pyproject.toml/uv.lock version and push to main
+        if: github.event_name == 'push' || inputs.push_version_bump == true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          VERSION="${{ steps.version.outputs.version }}"
+          for attempt in 1 2 3; do
+            git fetch origin "${DEFAULT_BRANCH}"
+            git checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
+            uv version "$VERSION" --no-sync
+            git add pyproject.toml uv.lock
+            if git diff --cached --quiet; then
+              echo "No version change needed; skipping commit."
+              break
+            fi
+            git commit -m "chore(release): bump version to $VERSION [skip ci]"
+            if git push origin "HEAD:${DEFAULT_BRANCH}"; then
+              echo "Pushed version bump."
+              break
+            fi
+            if [ "$attempt" = "3" ]; then
+              echo "::error::Failed to push version bump after 3 attempts. No release will be created."
+              exit 1
+            fi
+          done
+
+      - name: Create GitHub Release with wheel asset
+        if: github.event_name == 'push' || inputs.create_release == true
+        uses: softprops/action-gh-release@v3.0.2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "v${{ steps.version.outputs.version }}"
+          files: ${{ steps.wheel.outputs.path }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,33 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Trained model artifacts (regenerate via training notebook, release separately)
+pii_ner/models/
+pii_ner/*.spacy
+
+# Packaged model output (built via `spacy package`, released separately via GitHub Release)
+packaged/
+*.whl
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

@@ -1,0 +1,31 @@
+[project]
+name = "ner-pii"
+version = "0.1.0"
+description = "Multilingual spaCy NER pipeline fine-tuned to detect person names (PER) and addresses (ADR) for PII redaction, based on xx_ent_wiki_sm"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "irufano", email = "irfanhidayatms@gmail.com" },
+]
+keywords = ["ner", "pii", "spacy", "nlp", "indonesian"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+    "click>=8.4.2",
+    "pandas>=3.0.5",
+    "spacy>=3.8.14",
+    "xx-ent-wiki-sm",
+]
+
+[project.urls]
+Repository = "https://github.com/irufano/spacy_ner_pii"
+Issues = "https://github.com/irufano/spacy_ner_pii/issues"
+
+[tool.uv.sources]
+xx-ent-wiki-sm = { url = "https://github.com/explosion/spacy-models/releases/download/xx_ent_wiki_sm-3.8.0/xx_ent_wiki_sm-3.8.0-py3-none-any.whl" }

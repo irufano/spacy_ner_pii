@@ -1,0 +1,7 @@
+{
+  "description": "Multilingual spaCy NER pipeline fine-tuned from xx_ent_wiki_sm to detect person names (PER) and addresses (ADR) for PII redaction in Indonesian text.",
+  "author": "irufano",
+  "email": "irfanhidayatms@gmail.com",
+  "url": "https://github.com/irufano/spacy_ner_pii",
+  "license": "MIT"
+}
