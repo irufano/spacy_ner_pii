@@ -24,7 +24,7 @@ Evaluated on a 105-sentence hand-labeled gold set covering hard cases (dialog at
 The trained model is released separately as a wheel via [GitHub Releases](https://github.com/irufano/spacy_ner_pii/releases) (not committed to this repo) — grab the `.whl` URL from the latest release and install it directly:
 
 ```bash
-pip install https://github.com/irufano/spacy_ner_pii/releases/download/v0.1.1/xx_ent_pii_sm-0.1.1-py3-none-any.whl
+pip install https://github.com/irufano/spacy_ner_pii/releases/download/v0.1.0/xx_ent_pii_sm-0.1.0-py3-none-any.whl
 ```
 
 ## Usage
@@ -37,7 +37,7 @@ doc = nlp("Budi Santoso tinggal di Jl. Merdeka No. 10, Bandung.")
 
 for ent in doc.ents:
     print(ent.text, ent.label_)
-# Budi Santoso            PER
+# Budi Santoso                  PER
 # Jl. Merdeka No. 10, Bandung   ADR
 ```
 

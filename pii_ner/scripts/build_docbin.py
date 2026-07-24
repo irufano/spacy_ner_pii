@@ -20,13 +20,15 @@ import spacy
 from spacy.tokens import DocBin
 
 _PII_NER_DIR = Path(__file__).resolve().parent.parent
+# NOTE: also update the matching filename reference in README.md's
+# Development section whenever a new dataset version is committed.
 DEFAULT_CSV = _PII_NER_DIR / "dataset_ner_3000_v1.csv"
 DEFAULT_OUT_DIR = _PII_NER_DIR
 DEFAULT_TRAIN_FRACTION = 0.9
 DEFAULT_RANDOM_STATE = 42  # matches pii_ner_train.ipynb exactly
 
 
-def build_doc_bin(nlp: spacy.Language, dataframe: pd.DataFrame) -> DocBin:
+def build_doc_bin(nlp: spacy.Language, dataframe: pd.DataFrame) -> DocBin:  # type: ignore
     doc_bin = DocBin()
     for _, row in dataframe.iterrows():
         doc = nlp.make_doc(row["teks"])
@@ -58,9 +60,15 @@ def build_doc_bin(nlp: spacy.Language, dataframe: pd.DataFrame) -> DocBin:
     show_default=True,
     help="Directory to write train.spacy / dev.spacy into.",
 )
-@click.option("--train-fraction", type=float, default=DEFAULT_TRAIN_FRACTION, show_default=True)
-@click.option("--random-state", type=int, default=DEFAULT_RANDOM_STATE, show_default=True)
-def main(csv_path: Path, out_dir: Path, train_fraction: float, random_state: int) -> None:
+@click.option(
+    "--train-fraction", type=float, default=DEFAULT_TRAIN_FRACTION, show_default=True
+)
+@click.option(
+    "--random-state", type=int, default=DEFAULT_RANDOM_STATE, show_default=True
+)
+def main(
+    csv_path: Path, out_dir: Path, train_fraction: float, random_state: int
+) -> None:
     df = pd.read_csv(csv_path)
     df = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
     split_idx = int(len(df) * train_fraction)
